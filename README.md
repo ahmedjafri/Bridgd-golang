@@ -1,2 +1,2 @@
-1. go instal
+1. go install
 2. go server.go
