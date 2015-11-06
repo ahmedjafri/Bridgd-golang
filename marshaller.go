@@ -8,6 +8,26 @@ import (
 	"os"
 )
 
+type Room struct {
+	id int
+    name string
+}
+
+
+type Song struct {
+    name string // do we need this?
+    videoLink string // Can we retrieve all the information from this link? Do we need the other params
+    videoData string // do we need this?
+}
+
+/*
+Method definitions:
+room->getSongQueue() []Song
+room->DeleteSong(videoLink) 
+room->AddSong(videoLink)
+*/
+
+
 func createNewDB() (*sql.DB, error) {
 	// TODO (ajafri): Should we be clearing the database on startup. Probably not.
 	os.Remove("./rooms.db")
