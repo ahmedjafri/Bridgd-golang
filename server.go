@@ -8,7 +8,7 @@ import (
 func main() {
 	log.Println("Listening on server 3000")
 
-	test()
+	writeToDB()
 
 	fs := http.FileServer(http.Dir("static"))
 	http.Handle("/", fs)
