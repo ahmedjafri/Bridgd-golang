@@ -1,23 +1,36 @@
 package main
 
 import (
-	"database/sql"
 	_ "github.com/mattn/go-sqlite3"
 	"log"
 	"os"
 	"io/ioutil"
+	"fmt"
+	"github.com/jmoiron/sqlx"
 )
 
 type Room struct {
 	// capitalized variables so they are exported https://golang.org/ref/spec#Exported_identifiers
-	Id int `json:"id"`
-    Name string `json:"name"`
+	Id int `json:"id" db:"id"`
+    Name string `json:"name" db:"name"`
+    Queue []Song `json:"queue"`
 }
 
 
-type Song struct {
-    videoData string // do we need this?
+type Song struct { 
+    VideoData string `db:"videoData"`
 }
+
+var schema = `
+CREATE TABLE rooms (
+	id integer not null primary key, 
+	name text
+);
+
+CREATE TABLE songs (
+	roomId integer not null, 
+	videoData text
+)`
 
 /*
 Method definitions:
@@ -27,10 +40,10 @@ room->AddSong(videoLink)
 */
 
 // keep a versioning scheme for the db so we can know when to recreate the sqlite file
-const dbVersion string = "1";
+const dbVersion string = "1.0";
 
 // TODO (ajafri): we perform a file read on each one of these calls so use it sparingly or change the pattern
-func createNewDB() (*sql.DB, error) {
+func createNewDB() (*sqlx.DB, error) {
 	var version string = "dbVersion"
 
 	b, err := ioutil.ReadFile("bridgdDBVersion.txt")
@@ -43,36 +56,45 @@ func createNewDB() (*sql.DB, error) {
     if version != dbVersion {
     	log.Println	("Version difference detected - recreating database")
 
-	    err = ioutil.WriteFile("bridgdDBVersion.txt", []byte(dbVersion), 0644)
-	    if err != nil {
-	        panic(err)
-	    }
-
 		os.Remove("./rooms.db") // clear the db if it is not versioned to the current version
 		
 		// let's create a new db and instantiate the structure 
-		db, err := sql.Open("sqlite3", "./rooms.db") 
+		db, err := sqlx.Open("sqlite3", "./rooms.db") 
     	if err != nil {
     		return db,err
     	}
 
-    	var query string = "create table rooms (id integer not null primary key, name text);"
-		_, err = db.Exec(query)
+    	/* TABLE CREATION */
+		_, err = db.Exec(schema)
 		if err != nil {
-			log.Printf("%q: %s\n", err, query)
+			log.Printf("%q: %s\n", err, schema)
 			return db, err
 		}
 
-		query = "insert into rooms(id, name) values(1, \"no yolo zone\")"
-		_, err = db.Exec(query)
+		room := Room{Id:1, Name:"no yolo zone"}
+		// TODO (ajafri): testing code to initialize table with data. Take out. 
+		_, err = db.NamedExec("insert into rooms(id, name) values(:id, :name)",room )
 		if err != nil {
-			log.Printf("%q: %s\n", err, query)
+			log.Printf("%q: %s\n", err)
 			return db, err
 		}
 
+		// TODO (ajafri): testing code to initialize table with data. Take out. 
+		song := Song{VideoData: "{ \"id\": { \"kind\": \"youtube#video\", \"videoId\": \"IDKMKBmpwrg\" }, \"snippet\": { \"title\": \"Tinashe - Player (Audio) ft. Chris Brown\", \"description\": \"\\\"Player\\\" feat. Chris Brown from Tinashe's forthcoming new album, Joyride. Apple Music: http://smarturl.it/PlayerCBa?IQid=yt Spotify: http://smarturl.it/PlayerCBs?\", \"thumbnails\": { \"default\": { \"url\": \"https://i.ytimg.com/vi/IDKMKBmpwrg/default.jpg\" } }, \"channelTitle\": \"TinasheOfficialVEVO\" } }"}
+		
+		_, err = db.NamedExec("insert into songs(roomId, videoData) values(:id, :videoData)", map[string]interface{}{ "id":room.Id, "videoData":song.VideoData })
+		if err != nil {
+			log.Printf("%q: %s\n", err)
+			return db, err
+		}
+
+		err = ioutil.WriteFile("bridgdDBVersion.txt", []byte(dbVersion), 0644)
+	    if err != nil {
+	        return db, err
+	    }
     } 
 		
-	return sql.Open("sqlite3", "./rooms.db")
+	return sqlx.Open("sqlite3", "./rooms.db")
 }
 
 func getRooms() ([]Room) {
@@ -82,19 +104,44 @@ func getRooms() ([]Room) {
 	}
 	defer db.Close()
 
-	rows, err := db.Query("select id, name from rooms")
+	var rooms []Room
+
+	rows, err := db.Queryx("select id, name from rooms")
+	defer rows.Close()
+
+    for rows.Next() {
+    	var room Room 
+        err := rows.StructScan(&room)
+        if err != nil {
+            log.Fatalln(err)
+        } 
+        room.Queue = getSongsForRoom(room)
+		rooms = append(rooms, room)
+    }
+
+	return rooms
+}
+
+func getSongsForRoom(room Room) ([]Song) {
+	db, err := createNewDB()
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer db.Close()
+
+	rows, err := db.Query(fmt.Sprintf("select videoData from songs where roomId=%d",room.Id))
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	var rooms []Room
+	var songs []Song
 
 	defer rows.Close()
 	for rows.Next() {
-		var room Room
-		rows.Scan(&room.Id, &room.Name)
-		rooms = append(rooms, room)
+		var song Song
+		rows.Scan(&song.VideoData)
+		songs = append(songs, song)
 	}
 
-	return rooms
+	return songs
 }
