@@ -7,7 +7,6 @@ import (
 )
 
 func main() {
-	log.Println("Listening on server 3000")
 	createNewDB()
 	
 	fs := http.FileServer(http.Dir("static"))
@@ -18,5 +17,8 @@ func main() {
 		json.NewEncoder(w).Encode(rooms)
 	})
 
-	http.ListenAndServe(":3000", nil)
+	var port string = "3001" // needs to be string so we can concatenate it without converting
+	
+	log.Println("Listening on server " + port)
+	http.ListenAndServe(":" + port, nil)
 }
