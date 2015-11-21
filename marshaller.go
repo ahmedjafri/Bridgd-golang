@@ -14,7 +14,9 @@ type Room struct {
 	// capitalized variables so they are exported https://golang.org/ref/spec#Exported_identifiers
 	Id int `json:"id" db:"id"`
     Name string `json:"name" db:"name"`
+    CurrentIndex int `json:"currentIndex" db:"current_index"`
     Queue []map[string]interface{} `json:"queue"`
+    Current map[string]interface{} `json:"current"`
 }
 
 
@@ -25,7 +27,8 @@ type Song struct {
 var schema = `
 CREATE TABLE rooms (
 	id integer not null primary key, 
-	name text
+	name text,
+	integer current_index
 );
 
 CREATE TABLE songs (
@@ -41,7 +44,7 @@ room->AddSong(videoLink)
 */
 
 // keep a versioning scheme for the db so we can know when to recreate the sqlite file
-const dbVersion string = "1.0";
+const dbVersion string = "1.1";
 
 // TODO (ajafri): we perform a file read on each one of these calls so use it sparingly or change the pattern
 func createNewDB() (*sqlx.DB, error) {
@@ -117,6 +120,7 @@ func getRooms() ([]Room) {
             log.Fatalln(err)
         } 
         room.Queue = getSongsForRoom(room)
+        room.Current = room.Queue[0]
 		rooms = append(rooms, room)
     }
 
