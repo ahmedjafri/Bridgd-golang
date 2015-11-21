@@ -7,13 +7,14 @@ import (
 	"io/ioutil"
 	"fmt"
 	"github.com/jmoiron/sqlx"
+	"encoding/json"
 )
 
 type Room struct {
 	// capitalized variables so they are exported https://golang.org/ref/spec#Exported_identifiers
 	Id int `json:"id" db:"id"`
     Name string `json:"name" db:"name"`
-    Queue []Song `json:"queue"`
+    Queue []map[string]interface{} `json:"queue"`
 }
 
 
@@ -122,7 +123,7 @@ func getRooms() ([]Room) {
 	return rooms
 }
 
-func getSongsForRoom(room Room) ([]Song) {
+func getSongsForRoom(room Room) ([]map[string]interface{}) {
 	db, err := createNewDB()
 	if err != nil {
 		log.Fatal(err)
@@ -134,13 +135,21 @@ func getSongsForRoom(room Room) ([]Song) {
 		log.Fatal(err)
 	}
 
-	var songs []Song
+	var songs []map[string]interface{}
 
 	defer rows.Close()
 	for rows.Next() {
 		var song Song
 		rows.Scan(&song.VideoData)
-		songs = append(songs, song)
+
+		var videoDataInMap map[string]interface{}
+		
+		err := json.Unmarshal([]byte(song.VideoData), &videoDataInMap)
+		if err != nil {
+    		log.Fatal(err)
+		}
+
+		songs = append(songs, videoDataInMap)
 	}
 
 	return songs
