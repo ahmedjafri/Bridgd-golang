@@ -10,13 +10,15 @@ import (
 	"encoding/json"
 )
 
+type SongJSON map[string]interface{}
+
 type Room struct {
 	// capitalized variables so they are exported https://golang.org/ref/spec#Exported_identifiers
 	Id int `json:"id" db:"id"`
     Name string `json:"name" db:"name"`
     CurrentIndex int `json:"currentIndex" db:"current_index"`
-    Queue []map[string]interface{} `json:"queue"`
-    Current map[string]interface{} `json:"current"`
+    Queue []SongJSON `json:"queue"`
+    Current SongJSON `json:"current"`
 }
 
 
@@ -127,7 +129,7 @@ func getRooms() ([]Room) {
 	return rooms
 }
 
-func getSongsForRoom(room Room) ([]map[string]interface{}) {
+func getSongsForRoom(room Room) ([]SongJSON) {
 	db, err := createNewDB()
 	if err != nil {
 		log.Fatal(err)
@@ -139,21 +141,21 @@ func getSongsForRoom(room Room) ([]map[string]interface{}) {
 		log.Fatal(err)
 	}
 
-	var songs []map[string]interface{}
+	var songs []SongJSON
 
 	defer rows.Close()
 	for rows.Next() {
 		var song Song
 		rows.Scan(&song.VideoData)
 
-		var videoDataInMap map[string]interface{}
+		var songJSON SongJSON
 		
-		err := json.Unmarshal([]byte(song.VideoData), &videoDataInMap)
+		err := json.Unmarshal([]byte(song.VideoData), &songJSON)
 		if err != nil {
     		log.Fatal(err)
 		}
 
-		songs = append(songs, videoDataInMap)
+		songs = append(songs, songJSON)
 	}
 
 	return songs
