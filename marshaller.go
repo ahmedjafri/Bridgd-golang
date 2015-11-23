@@ -29,7 +29,7 @@ type Song struct {
 var schema = `
 CREATE TABLE rooms (
 	id integer not null primary key, 
-	name text,
+	name text unique,
 	integer current_index
 );
 
@@ -46,7 +46,7 @@ room->AddSong(videoLink)
 */
 
 // keep a versioning scheme for the db so we can know when to recreate the sqlite file
-const dbVersion string = "1.1";
+const dbVersion string = "1.2";
 
 // TODO (ajafri): we perform a file read on each one of these calls so use it sparingly or change the pattern
 func createNewDB() (*sqlx.DB, error) {
@@ -127,6 +127,23 @@ func getRooms() ([]Room) {
     }
 
 	return rooms
+}
+
+func getRoom(roomName string) (Room, error) {
+	db, err := createNewDB()
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer db.Close()
+
+	var room Room
+    err = db.Get(&room, "select id, name from rooms where name=$1", roomName)
+
+    if(err != nil) {
+    	return room, err
+    }
+
+	return room, nil
 }
 
 func getSongsForRoom(room Room) ([]SongJSON) {
