@@ -7,6 +7,7 @@ import (
 	"github.com/googollee/go-socket.io"
 	"text/template"
 	"github.com/gorilla/mux"
+	"fmt"
 )
 
 func main() {
@@ -43,6 +44,18 @@ func main() {
 		   		var error string = "No method at this endpoint" 
 		   		json.NewEncoder(w).Encode(error)
 		}
+	})
+
+	r.HandleFunc("/room/{roomName}", func(w http.ResponseWriter, r *http.Request) {
+		vars := mux.Vars(r)
+		room, err := getRoom(vars["roomName"])
+
+		if(err != nil) {
+			fmt.Fprint(w, err)
+			return 
+		}
+
+		json.NewEncoder(w).Encode(room)
 	})
 
 
