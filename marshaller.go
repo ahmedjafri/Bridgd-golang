@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"github.com/jmoiron/sqlx"
 	"encoding/json"
+	"errors"
 )
 
 type SongJSON map[string]interface{}
@@ -34,6 +35,7 @@ CREATE TABLE rooms (
 );
 
 CREATE TABLE songs (
+	songId text,
 	roomId integer not null, 
 	videoData text
 )`
@@ -46,7 +48,7 @@ room->AddSong(videoLink)
 */
 
 // keep a versioning scheme for the db so we can know when to recreate the sqlite file
-const dbVersion string = "1.4";
+const dbVersion string = "1.5";
 const dbFile string = "./rooms.db"
 // TODO (ajafri): we perform a file read on each one of these calls so use it sparingly or change the pattern
 func createNewDB() (*sqlx.DB, error) {
@@ -89,7 +91,7 @@ func createNewDB() (*sqlx.DB, error) {
 		// TODO (ajafri): testing code to initialize table with data. Take out. 
 		song := Song{VideoData: "{ \"id\": { \"kind\": \"youtube#video\", \"videoId\": \"IDKMKBmpwrg\" }, \"snippet\": { \"title\": \"Tinashe - Player (Audio) ft. Chris Brown\", \"description\": \"\\\"Player\\\" feat. Chris Brown from Tinashe's forthcoming new album, Joyride. Apple Music: http://smarturl.it/PlayerCBa?IQid=yt Spotify: http://smarturl.it/PlayerCBs?\", \"thumbnails\": { \"default\": { \"url\": \"https://i.ytimg.com/vi/IDKMKBmpwrg/default.jpg\" } }, \"channelTitle\": \"TinasheOfficialVEVO\" } }"}
 		
-		_, err = db.NamedExec("insert into songs(roomId, videoData) values(:id, :videoData)", map[string]interface{}{ "id":room.Id, "videoData":song.VideoData })
+		_, err = db.NamedExec("insert into songs(songId, roomId, videoData) values(:songId, :id, :videoData)", map[string]interface{}{ "songId":"IDKMKBmpwrg", "id":room.Id, "videoData":song.VideoData })
 		if err != nil {
 			log.Printf("%q: %s\n", err)
 			return db, err
@@ -139,12 +141,41 @@ func getRoom(roomName string) (Room, error) {
 
 	var room Room
     err = db.Get(&room, "select * from rooms where name=$1", roomName)
-    room.Queue = getSongsForRoom(room)
-    room.Current = room.Queue[room.CurrentIndex]
-    if(err != nil) {
+
+    if err != nil {
     	return room, err
     }
 
+    room.Queue = getSongsForRoom(room)
+    room.Current = room.Queue[room.CurrentIndex]
+    if err != nil {
+    	return room, err
+    }
+
+	return room, nil
+}
+
+func addSongToRoom(songJSONStr string, room Room) (Room, error) {
+	db, err := createNewDB()
+
+	var songJSON SongJSON
+	err = json.Unmarshal([]byte(songJSONStr), &songJSON)
+	if err != nil {
+		return room, err
+	}
+
+	songIdMap,ok := songJSON["id"].(map[string]interface{}) // type assertion
+
+	if !ok {
+		return room, errors.New("song json is not formatted properly")
+	}
+
+	_, err = db.NamedExec("insert into songs(songId, roomId, videoData) values(:songId, :id, :videoData)", map[string]interface{}{ "songId": songIdMap["videoId"] , "id":room.Id, "videoData":songJSONStr })
+	if err != nil {
+		return room, err
+	}
+
+	room.Queue = append(room.Queue, songJSON)
 	return room, nil
 }
 

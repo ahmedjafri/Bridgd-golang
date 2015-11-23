@@ -8,6 +8,7 @@ import (
 	htemplate "html/template" 
 	"github.com/gorilla/mux"
 	"fmt"
+	"io/ioutil"
 )
 
 var roomTemplate *template.Template
@@ -36,6 +37,33 @@ func serveGetRoom(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// add a song onto the queue
+func servePostRoom(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	room, err := getRoom(vars["roomName"])
+
+	if err != nil {
+		fmt.Fprint(w, err)
+		return 
+	}
+
+	body, err := ioutil.ReadAll(r.Body)
+
+	if err != nil {
+		fmt.Fprint(w, err)
+		return
+	}
+
+	room, err = addSongToRoom(string(body), room)
+
+	if err != nil {
+		fmt.Fprint(w, err)
+		return
+	}
+
+	json.NewEncoder(w).Encode(room)
+}
+
 func serveRoom(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 		case "GET": 
@@ -47,7 +75,11 @@ func serveRoom(w http.ResponseWriter, r *http.Request) {
 			}
 			serveGetRoom(w,r)
 
+		case "POST": 
+			servePostRoom(w,r)
+
 		default:
+			w.WriteHeader(http.StatusMethodNotAllowed)
 			fmt.Fprint(w,"the method " + r.Method + " is not supported")
 	}
 
