@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"github.com/googollee/go-socket.io"
 	"text/template"
+	htemplate "html/template" 
 	"github.com/gorilla/mux"
 	"fmt"
 )
@@ -46,6 +47,17 @@ func main() {
 		}
 	})
 
+
+	roomTemplate, err := template.ParseFiles("static/room.html")
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    indexTemplate, err := htemplate.ParseFiles("static/index.html")
+    if err != nil {
+        log.Fatal(err)
+    }
+
 	r.HandleFunc("/room/{roomName}", func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		room, err := getRoom(vars["roomName"])
@@ -55,17 +67,6 @@ func main() {
 			return 
 		}
 
-		json.NewEncoder(w).Encode(room)
-	})
-
-
-    t, err := template.ParseFiles("static/index.html")
-    if err != nil {
-        log.Fatal(err)
-    }
-
-	r.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) { 
-		var room Room = getRooms()[0]
 		var roomQueueJSON string;
 		roomQueueJSONbytes, err := json.Marshal(&room)
 		if(err != nil) {
@@ -73,12 +74,19 @@ func main() {
 		}
 
 		roomQueueJSON = string(roomQueueJSONbytes)
-		err = t.Execute(w, map[string]string {"Room": roomQueueJSON})
+		err = roomTemplate.Execute(w, map[string]string {"Room": roomQueueJSON})
 		if(err != nil) {
 			log.Fatal(err)
 		}
+	})
 
+	r.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) { 
+		var rooms []Room = getRooms()
 
+		err = indexTemplate.Execute(w, map[string][]Room {"Rooms": rooms})
+		if(err != nil) {
+			log.Fatal(err)
+		}
 	})
 
 	r.HandleFunc("/emit", func(w http.ResponseWriter, r *http.Request) {

@@ -30,7 +30,7 @@ var schema = `
 CREATE TABLE rooms (
 	id integer not null primary key, 
 	name text unique,
-	integer current_index
+	current_index integer not null default 0
 );
 
 CREATE TABLE songs (
@@ -46,8 +46,8 @@ room->AddSong(videoLink)
 */
 
 // keep a versioning scheme for the db so we can know when to recreate the sqlite file
-const dbVersion string = "1.3";
-
+const dbVersion string = "1.4";
+const dbFile string = "./rooms.db"
 // TODO (ajafri): we perform a file read on each one of these calls so use it sparingly or change the pattern
 func createNewDB() (*sqlx.DB, error) {
 	var version string = "dbVersion"
@@ -58,11 +58,12 @@ func createNewDB() (*sqlx.DB, error) {
     }
 
     version = string(b)
+	_, err = os.Stat(dbFile)
 
-    if version != dbVersion {
+    if version != dbVersion || os.IsNotExist(err) {
     	log.Println	("Version difference detected - recreating database")
 
-		os.Remove("./rooms.db") // clear the db if it is not versioned to the current version
+		os.Remove(dbFile) // clear the db if it is not versioned to the current version
 		
 		// let's create a new db and instantiate the structure 
 		db, err := sqlx.Open("sqlite3", "./rooms.db") 
@@ -137,8 +138,9 @@ func getRoom(roomName string) (Room, error) {
 	defer db.Close()
 
 	var room Room
-    err = db.Get(&room, "select id, name from rooms where name=$1", roomName)
-
+    err = db.Get(&room, "select * from rooms where name=$1", roomName)
+    room.Queue = getSongsForRoom(room)
+    room.Current = room.Queue[room.CurrentIndex]
     if(err != nil) {
     	return room, err
     }
