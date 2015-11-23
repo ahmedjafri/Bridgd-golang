@@ -46,7 +46,7 @@ room->AddSong(videoLink)
 */
 
 // keep a versioning scheme for the db so we can know when to recreate the sqlite file
-const dbVersion string = "1.2";
+const dbVersion string = "1.3";
 
 // TODO (ajafri): we perform a file read on each one of these calls so use it sparingly or change the pattern
 func createNewDB() (*sqlx.DB, error) {
@@ -77,7 +77,7 @@ func createNewDB() (*sqlx.DB, error) {
 			return db, err
 		}
 
-		room := Room{Id:1, Name:"no yolo zone"}
+		room := Room{Id:1, Name:"no-yolo-zone"}
 		// TODO (ajafri): testing code to initialize table with data. Take out. 
 		_, err = db.NamedExec("insert into rooms(id, name) values(:id, :name)",room )
 		if err != nil {
