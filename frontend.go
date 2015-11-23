@@ -14,14 +14,7 @@ var roomTemplate *template.Template
 var indexTemplate *htemplate.Template
 var err error
 
-func serveRoom(w http.ResponseWriter, r *http.Request) {
-	if(roomTemplate == nil) {
-		roomTemplate, err = template.ParseFiles("static/room.html")
-		if err != nil {
-		    log.Fatal(err)
-		}
-	}
-
+func serveGetRoom(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	room, err := getRoom(vars["roomName"])
 
@@ -41,6 +34,25 @@ func serveRoom(w http.ResponseWriter, r *http.Request) {
 	if(err != nil) {
 		log.Fatal(err)
 	}
+}
+
+func serveRoom(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+		case "GET": 
+			if(roomTemplate == nil) {
+				roomTemplate, err = template.ParseFiles("static/room.html")
+				if err != nil {
+				    log.Fatal(err)
+				}
+			}
+			serveGetRoom(w,r)
+
+		default:
+			fmt.Fprint(w,"the method " + r.Method + " is not supported")
+	}
+
+
+
 }
 
 func serveHome(w http.ResponseWriter, r *http.Request) { 
