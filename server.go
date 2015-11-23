@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"github.com/googollee/go-socket.io"
 	"text/template"
+	"github.com/gorilla/mux"
 )
 
 func main() {
@@ -17,21 +18,23 @@ func main() {
         log.Fatal(err)
     }
 
-    server.On("connection", func(so socketio.Socket) {
+    server.On("joined", func(so socketio.Socket) {
         log.Println("Connected to a peer...")
-        so.Join("chat")
 
         so.On("disconnection", func() {
             log.Println("Disconnected from peer...")
         })
     })   
 
+    r := mux.NewRouter()
+    r.Handle("/socket.io/", server)
+
 	createNewDB()
 	
 	fs := http.FileServer(http.Dir("static/assets/"))
-	http.Handle("/assets/", http.StripPrefix("/assets/", fs))
+	r.PathPrefix("/assets/").Handler(http.StripPrefix("/assets/", fs))
 	
-	http.HandleFunc("/rooms", func(w http.ResponseWriter, r *http.Request) {
+	r.HandleFunc("/rooms", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		   case "GET":
 		      	var rooms []Room = getRooms()
@@ -42,12 +45,13 @@ func main() {
 		}
 	})
 
+
     t, err := template.ParseFiles("static/index.html")
     if err != nil {
         log.Fatal(err)
     }
 
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) { 
+	r.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) { 
 		var room Room = getRooms()[0]
 		var roomQueueJSON string;
 		roomQueueJSONbytes, err := json.Marshal(&room)
@@ -64,7 +68,7 @@ func main() {
 
 	})
 
-	http.HandleFunc("/emit", func(w http.ResponseWriter, r *http.Request) {
+	r.HandleFunc("/emit", func(w http.ResponseWriter, r *http.Request) {
 		server.BroadcastTo("chat", "chat message")
 	})
 
@@ -73,5 +77,6 @@ func main() {
 	var port string = "3001" // needs to be string so we can concatenate it without converting
 	
 	log.Println("Listening on server " + port)
-	http.ListenAndServe(":" + port, nil)
+	http.Handle("/", r)
+	http.ListenAndServe(":" + port, r)
 }
