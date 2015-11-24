@@ -6,11 +6,35 @@ import (
 	"text/template"
 	htemplate "html/template" 
 	"fmt"
+	"encoding/json"
+	"github.com/gorilla/mux"
 )
 
 var roomTemplate *template.Template
 var indexTemplate *htemplate.Template
 var err error
+
+func serveGetRoom(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	room, err := getRoom(vars["roomName"])
+
+	if(err != nil) {
+		fmt.Fprint(w, err)
+		return 
+	}
+
+	var roomQueueJSON string;
+	roomQueueJSONbytes, err := json.Marshal(&room)
+	if(err != nil) {
+		log.Fatal(err)
+	}
+
+	roomQueueJSON = string(roomQueueJSONbytes)
+	err = roomTemplate.Execute(w, map[string]string {"Room": roomQueueJSON})
+	if(err != nil) {
+		log.Fatal(err)
+	}
+}
 
 func serveRoom(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
@@ -30,9 +54,6 @@ func serveRoom(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusMethodNotAllowed)
 			fmt.Fprint(w,"the method " + r.Method + " is not supported")
 	}
-
-
-
 }
 
 func serveHome(w http.ResponseWriter, r *http.Request) { 
