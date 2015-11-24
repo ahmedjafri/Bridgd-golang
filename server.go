@@ -36,6 +36,8 @@ func main() {
 	r.HandleFunc("/room/{roomName}", serveRoom)
 	r.HandleFunc("/", serveHome)
 
+	r.HandleFunc("/authedRoute", BasicAuth(serveHome))
+
 
 	// TODO (ajafri): testing. Take this out later
 	r.HandleFunc("/emit", func(w http.ResponseWriter, r *http.Request) {
