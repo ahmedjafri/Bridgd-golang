@@ -29,7 +29,7 @@ func main() {
 
 	createNewDB()
 	
-	fs := http.FileServer(http.Dir("static/assets/"))
+	fs := http.FileServer(http.Dir("static/"))
 	r.PathPrefix("/assets/").Handler(http.StripPrefix("/assets/", fs))
 
 	// these routes can be found in frontend.go
