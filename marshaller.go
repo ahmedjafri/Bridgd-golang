@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"github.com/jmoiron/sqlx"
 	"encoding/json"
+	"errors"
 )
 
 type SongJSON map[string]interface{}
@@ -29,11 +30,12 @@ type Song struct {
 var schema = `
 CREATE TABLE rooms (
 	id integer not null primary key, 
-	name text,
-	integer current_index
+	name text unique,
+	current_index integer not null default 0
 );
 
 CREATE TABLE songs (
+	songId text,
 	roomId integer not null, 
 	videoData text
 )`
@@ -46,8 +48,8 @@ room->AddSong(videoLink)
 */
 
 // keep a versioning scheme for the db so we can know when to recreate the sqlite file
-const dbVersion string = "1.1";
-
+const dbVersion string = "1.5";
+const dbFile string = "./rooms.db"
 // TODO (ajafri): we perform a file read on each one of these calls so use it sparingly or change the pattern
 func createNewDB() (*sqlx.DB, error) {
 	var version string = "dbVersion"
@@ -58,11 +60,12 @@ func createNewDB() (*sqlx.DB, error) {
     }
 
     version = string(b)
+	_, err = os.Stat(dbFile)
 
-    if version != dbVersion {
+    if version != dbVersion || os.IsNotExist(err) {
     	log.Println	("Version difference detected - recreating database")
 
-		os.Remove("./rooms.db") // clear the db if it is not versioned to the current version
+		os.Remove(dbFile) // clear the db if it is not versioned to the current version
 		
 		// let's create a new db and instantiate the structure 
 		db, err := sqlx.Open("sqlite3", "./rooms.db") 
@@ -77,7 +80,7 @@ func createNewDB() (*sqlx.DB, error) {
 			return db, err
 		}
 
-		room := Room{Id:1, Name:"no yolo zone"}
+		room := Room{Id:1, Name:"no-yolo-zone"}
 		// TODO (ajafri): testing code to initialize table with data. Take out. 
 		_, err = db.NamedExec("insert into rooms(id, name) values(:id, :name)",room )
 		if err != nil {
@@ -88,7 +91,7 @@ func createNewDB() (*sqlx.DB, error) {
 		// TODO (ajafri): testing code to initialize table with data. Take out. 
 		song := Song{VideoData: "{ \"id\": { \"kind\": \"youtube#video\", \"videoId\": \"IDKMKBmpwrg\" }, \"snippet\": { \"title\": \"Tinashe - Player (Audio) ft. Chris Brown\", \"description\": \"\\\"Player\\\" feat. Chris Brown from Tinashe's forthcoming new album, Joyride. Apple Music: http://smarturl.it/PlayerCBa?IQid=yt Spotify: http://smarturl.it/PlayerCBs?\", \"thumbnails\": { \"default\": { \"url\": \"https://i.ytimg.com/vi/IDKMKBmpwrg/default.jpg\" } }, \"channelTitle\": \"TinasheOfficialVEVO\" } }"}
 		
-		_, err = db.NamedExec("insert into songs(roomId, videoData) values(:id, :videoData)", map[string]interface{}{ "id":room.Id, "videoData":song.VideoData })
+		_, err = db.NamedExec("insert into songs(songId, roomId, videoData) values(:songId, :id, :videoData)", map[string]interface{}{ "songId":"IDKMKBmpwrg", "id":room.Id, "videoData":song.VideoData })
 		if err != nil {
 			log.Printf("%q: %s\n", err)
 			return db, err
@@ -127,6 +130,53 @@ func getRooms() ([]Room) {
     }
 
 	return rooms
+}
+
+func getRoom(roomName string) (Room, error) {
+	db, err := createNewDB()
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer db.Close()
+
+	var room Room
+    err = db.Get(&room, "select * from rooms where name=$1", roomName)
+
+    if err != nil {
+    	return room, err
+    }
+
+    room.Queue = getSongsForRoom(room)
+    room.Current = room.Queue[room.CurrentIndex]
+    if err != nil {
+    	return room, err
+    }
+
+	return room, nil
+}
+
+func addSongToRoom(songJSONStr string, room Room) (Room, error) {
+	db, err := createNewDB()
+
+	var songJSON SongJSON
+	err = json.Unmarshal([]byte(songJSONStr), &songJSON)
+	if err != nil {
+		return room, err
+	}
+
+	songIdMap,ok := songJSON["id"].(map[string]interface{}) // type assertion
+
+	if !ok {
+		return room, errors.New("song json is not formatted properly")
+	}
+
+	_, err = db.NamedExec("insert into songs(songId, roomId, videoData) values(:songId, :id, :videoData)", map[string]interface{}{ "songId": songIdMap["videoId"] , "id":room.Id, "videoData":songJSONStr })
+	if err != nil {
+		return room, err
+	}
+
+	room.Queue = append(room.Queue, songJSON)
+	return room, nil
 }
 
 func getSongsForRoom(room Room) ([]SongJSON) {
